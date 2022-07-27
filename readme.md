@@ -7,3 +7,4 @@
 - Field injection of Connection object didn't work so I had to do a little of a workaround
 - Some sort of a caching system would be nice
 - Use prepared statements instead of raw execute to prevent exploits
+- Add config manager clas so that there are no harcoded hosts/usernames constants etc..
