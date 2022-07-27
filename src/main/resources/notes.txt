@@ -1,0 +1,195 @@
+// Random saved text
+
+DROP DATABASE IF EXISTS test;
+CREATE DATABASE test;
+
+SELECT pg_terminate_backend(pg_stat_activity.pid)
+FROM pg_stat_activity
+WHERE pg_stat_activity.datname = 'test';
+
+\CONNECT test;
+DROP SCHEMA IF EXISTS codexis CASCADE;
+
+CREATE SCHEMA codexis
+	CREATE TABLE users(
+		uuid UUID DEFAULT gen_random_uuid(),
+		name TEXT NOT NULL,
+		timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
+		PRIMARY KEY(uuid)
+	)
+
+	CREATE TABLE documents(
+		uuid UUID DEFAULT gen_random_uuid(),
+		user_uuid UUID NOT NULL,
+		timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
+		PRIMARY KEY(uuid),
+  		CONSTRAINT fk_users
+      		FOREIGN KEY(user_uuid)
+	  			REFERENCES users(uuid)
+	)
+
+	CREATE TABLE visits(
+		uuid UUID DEFAULT gen_random_uuid(),
+		doc_uuid UUID NOT NULL,
+		timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
+		PRIMARY KEY(uuid),
+		CONSTRAINT fk_documents
+      		FOREIGN KEY(doc_uuid)
+	  			REFERENCES documents(uuid)
+	);
+
+CREATE INDEX doc_uuid_index ON codexis.visits (doc_uuid);
+CREATE INDEX uuid_index_v ON codexis.visits (uuid);
+CREATE INDEX user_uuid_index ON codexis.documents (user_uuid);
+CREATE INDEX uuid_index_d ON codexis.documents (uuid);
+CREATE INDEX uuid_index_u ON codexis.users (uuid);
+
+DO $$
+declare
+  i record;
+  j record;
+  count integer;
+  user_uuid uuid;
+  doc_uuid uuid;
+begin
+  for i in 1..402 loop
+    SELECT gen_random_uuid() INTO user_uuid;
+    SELECT gen_random_uuid() INTO doc_uuid;
+    INSERT INTO codexis.users(SELECT user_uuid as uuid, md5(random()::text) AS name, NOW() as timestamp);
+    INSERT INTO codexis.documents(SELECT doc_uuid as uuid, user_uuid as user_uuid, NOW() as timestamp);
+    SELECT floor(random() * 1200)::int INTO count;
+    for j in 1..count loop
+    	INSERT INTO codexis.visits(SELECT gen_random_uuid() as uuid, doc_uuid as doc_uuid, NOW() as timestamp);
+    end loop;
+  end loop;
+end;
+$$ ;
+
+DO $$
+declare
+begin
+  for i in 1..4020 loop
+    INSERT INTO codexis.visits(SELECT gen_random_uuid() as uuid, UUID('241bc778-8fa6-419c-8aa3-22b83dc23acd'), NOW() as timestamp);
+  end loop;
+end;
+$$ ;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+DO $$
+declare
+  count integer;
+begin
+	SELECT ABS(COUNT(codexis.Visits.doc_uuid) -
+             (SELECT pg_class.reltuples::bigint AS COUNT
+              FROM pg_class
+              WHERE pg_class.oid = to_regclass('codexis.visits')) /
+             (SELECT pg_class.reltuples::bigint AS COUNT
+              FROM pg_class
+              WHERE pg_class.oid = to_regclass('codexis.documents'))::float)
+	FROM codexis.Visits INTO count;
+
+	RETURN TABLE
+  	SELECT 17700  /
+  	(SELECT STDDEV(standard_deviation)
+   	FROM
+     		(SELECT POW(COUNT(codexis.Visits.doc_uuid), 2) AS standard_deviation
+      	FROM codexis.Visits
+      	INNER JOIN codexis.Documents ON codexis.Documents.uuid = codexis.Visits.doc_uuid
+      	GROUP BY codexis.Visits.doc_uuid) AS sd) AS z_score,
+       	codexis.Visits.doc_uuid
+	FROM codexis.Visits
+	WHERE (EXISTS
+         (SELECT 1
+          FROM codexis.Documents
+          WHERE codexis.Documents.uuid = codexis.Visits.doc_uuid ))
+	GROUP BY codexis.Visits.doc_uuid
+	ORDER BY z_score DESC
+	LIMIT 10;
+end;
+$$ ;
+
+
+CREATE FUNCTION getCount()
+RETURNS INT
+LANGUAGE plpgsql
+AS
+$$
+DECLARE
+	count INTEGER;
+BEGIN
+      SELECT ABS(COUNT(codexis.Visits.doc_uuid) -
+             (SELECT pg_class.reltuples::bigint AS COUNT
+              FROM pg_class
+              WHERE pg_class.oid = to_regclass('codexis.visits')) /
+             (SELECT pg_class.reltuples::bigint AS COUNT
+              FROM pg_class
+              WHERE pg_class.oid = to_regclass('codexis.documents'))::float)
+	FROM codexis.Visits INTO count;
+	RETURN count;
+END;
+$$
+
+
+CREATE FUNCTION OR REPLACE getScore()
+RETURNS table(uuid UUID, z_score float) AS $$
+DECLARE
+   count integer;
+BEGIN
+      SELECT ABS(COUNT(codexis.Visits.doc_uuid) -
+             (SELECT pg_class.reltuples::bigint AS COUNT
+              FROM pg_class
+              WHERE pg_class.oid = to_regclass('codexis.visits')) /
+             (SELECT pg_class.reltuples::bigint AS COUNT
+              FROM pg_class
+              WHERE pg_class.oid = to_regclass('codexis.documents'))::float)
+	FROM codexis.Visits INTO count;
+
+  	RETURN QUERY SELECT count  /
+  	(SELECT STDDEV(standard_deviation)
+   	FROM
+     		(SELECT COUNT(codexis.Visits.doc_uuid) AS standard_deviation
+      	FROM codexis.Visits
+      	INNER JOIN codexis.Documents ON codexis.Documents.uuid = codexis.Visits.doc_uuid
+      	GROUP BY codexis.Visits.doc_uuid) AS sd) AS z_score,
+       	codexis.Visits.doc_uuid
+	FROM codexis.Visits
+	WHERE (EXISTS
+         (SELECT 1
+          FROM codexis.Documents
+          WHERE codexis.Documents.uuid = codexis.Visits.doc_uuid ))
+	GROUP BY codexis.Visits.doc_uuid
+	ORDER BY z_score DESC
+	LIMIT 10;
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT COUNT(codexis.Visits.doc_uuid) AS standard_deviation
+      	FROM codexis.Visits
+      	INNER JOIN codexis.Documents ON codexis.Documents.uuid = codexis.Visits.doc_uuid
+      	GROUP BY codexis.Visits.doc_uuid
+
+(SELECT VARIANCE(standard_deviation) as ee
+   	FROM
+     		(SELECT COUNT(codexis.Visits.doc_uuid) AS standard_deviation
+      	FROM codexis.Visits
+      	INNER JOIN codexis.Documents ON codexis.Documents.uuid = codexis.Visits.doc_uuid
+      	GROUP BY codexis.Visits.doc_uuid)) as aa

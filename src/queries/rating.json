@@ -1,0 +1,3 @@
+{
+  "query":"{\"query\":\"query{getScore(limit: 10, useRelativeVariance: false){ variance, entries{ score, uuid } } }\"}"
+}

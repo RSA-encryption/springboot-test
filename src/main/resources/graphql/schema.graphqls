@@ -1,0 +1,34 @@
+type Document {
+    uuid: ID
+    user: User
+    createdAt: String
+}
+
+type ScoreEntry {
+    uuid: ID!
+    score: Float!
+}
+
+type Score {
+    entries: [ScoreEntry]!
+    variance: Float!
+}
+
+type Query {
+    getDocument(uuid: String!): [Document]
+    getUser(uuid: String!): [User]
+    visit(userUUID: String!, docUUID: String!): String
+    getScore(limit: Int!, useRelativeVariance: Boolean = false, from: String = null, to: String = null): [Score]
+}
+
+type User {
+    uuid: ID
+    name: String
+    createdAt: String
+}
+
+type Visits{
+    uuid: ID
+    by: User
+    at: String
+}
