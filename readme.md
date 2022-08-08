@@ -1,4 +1,3 @@
-# Springboot assignment
 
 ## Before you start reading the code please read this
 ```
